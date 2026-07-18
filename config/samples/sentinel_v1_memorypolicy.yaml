@@ -1,0 +1,11 @@
+apiVersion: sentinel.io/v1
+kind: MemoryPolicy
+metadata:
+  name: web-memory-safety
+spec:
+  namespaceSelector:
+    matchLabels: {sentinel.io/enabled: "true"}
+  labelSelector:
+    matchLabels: {app: memory-demo}
+  thresholdPercent: 85
+  gracePeriodSeconds: 10

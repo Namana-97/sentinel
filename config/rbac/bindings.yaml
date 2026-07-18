@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sentinel-operator
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: sentinel-operator}
+subjects:
+  - {kind: ServiceAccount, name: sentinel-operator, namespace: sentinel-system}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sentinel-node-monitor
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: sentinel-node-monitor}
+subjects:
+  - {kind: ServiceAccount, name: sentinel-node-monitor, namespace: sentinel-system}

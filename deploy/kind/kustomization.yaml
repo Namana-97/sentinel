@@ -1,0 +1,7 @@
+resources: [../../config]
+patches:
+  - target: {kind: Deployment, name: sentinel-operator}
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1

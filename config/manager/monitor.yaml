@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sentinel-node-monitor
+  namespace: sentinel-system
+spec:
+  selector: {matchLabels: {app.kubernetes.io/name: sentinel-node-monitor}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: sentinel-node-monitor}}
+    spec:
+      serviceAccountName: sentinel-node-monitor
+      hostPID: true
+      tolerations: [{operator: Exists}]
+      containers:
+        - name: monitor
+          image: sentinel:latest
+          imagePullPolicy: IfNotPresent
+          args: [--mode=node-monitor, --scan-interval=2s, --workers=4, --queue-size=256]
+          env:
+            - name: NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+          volumeMounts:
+            - {name: cgroup, mountPath: /host-sys/fs/cgroup, readOnly: true}
+          resources:
+            requests: {cpu: 50m, memory: 48Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL], add: [KILL]}
+            seccompProfile: {type: RuntimeDefault}
+      volumes:
+        - name: cgroup
+          hostPath: {path: /sys/fs/cgroup, type: Directory}

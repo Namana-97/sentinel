@@ -1,0 +1,1 @@
+resources: [operator.yaml, monitor.yaml]

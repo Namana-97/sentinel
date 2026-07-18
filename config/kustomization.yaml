@@ -1,0 +1,10 @@
+namespace: sentinel-system
+resources:
+  - namespace.yaml
+  - crd
+  - rbac
+  - manager
+images:
+  - name: sentinel
+    newName: ghcr.io/namanakanchan/sentinel
+    newTag: latest
