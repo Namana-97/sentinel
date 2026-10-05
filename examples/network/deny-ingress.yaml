@@ -1,0 +1,8 @@
+# Requires a CNI which enforces NetworkPolicy; default kind networking does not.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: block-web, namespace: sentinel-network-demo}
+spec:
+  podSelector: {matchLabels: {app: sentinel-network-demo}}
+  policyTypes: [Ingress]
+  ingress: []

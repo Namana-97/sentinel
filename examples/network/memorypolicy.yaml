@@ -1,0 +1,11 @@
+# Optional: apply to connect the networking demo with Phase 1 memory intervention.
+apiVersion: sentinel.io/v1
+kind: MemoryPolicy
+metadata: {name: network-demo}
+spec:
+  namespaceSelector:
+    matchLabels: {kubernetes.io/metadata.name: sentinel-network-demo}
+  labelSelector:
+    matchLabels: {app: sentinel-network-demo}
+  thresholdPercent: 85
+  gracePeriodSeconds: 15

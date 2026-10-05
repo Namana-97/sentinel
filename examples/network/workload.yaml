@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Namespace
+metadata: {name: sentinel-network-demo}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web, namespace: sentinel-network-demo}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: sentinel-network-demo}}
+  template:
+    metadata: {labels: {app: sentinel-network-demo}}
+    spec:
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: web
+          image: nginx:1.28-alpine
+          ports: [{name: http, containerPort: 80}]
+          readinessProbe: {httpGet: {path: /, port: http}, periodSeconds: 2}
+          resources:
+            requests: {cpu: 25m, memory: 16Mi}
+            limits: {cpu: 250m, memory: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: sentinel-network-demo
+  labels: {sentinel.io/network-check: "true"}
+  annotations: {sentinel.io/network-port: http, sentinel.io/network-path: /}
+spec:
+  selector: {app: sentinel-network-demo}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: web, namespace: sentinel-network-demo}
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: sentinel-network-demo}}

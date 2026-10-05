@@ -89,3 +89,11 @@ Expected stages are `breach_detected`, `sigterm_sent`, `grace_completed`, `memor
 ## Non-goals and operational limits
 
 Sentinel does not replace correct resource sizing or application-level load shedding. A rapid allocation can still race the scan interval and reach OOM first. SIGTERM is delivered at pod cgroup scope; applications must handle it, and cluster administrators must approve the node-trusted DaemonSet. Eviction behavior is intentionally subject to admission controls and PDB availability.
+
+## Phase 2 — networking and service recovery
+
+An optional `--mode=network-monitor` checks labeled HTTP Services from a normal
+pod network, tracks ready EndpointSlices, DNS and HTTP availability, and logs
+outage/recovery transitions. Deploy it with `config/manager/network.yaml`.
+See [the Phase 2 guide](docs/networking-phase2.md) for failure scenarios,
+local-cluster validation and Linux packet-path tracing.
