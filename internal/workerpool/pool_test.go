@@ -57,7 +57,7 @@ func TestPoolCancellation(t *testing.T) {
 	if result.Status != ResultCancelled || !errors.Is(result.Err, context.Canceled) {
 		t.Fatalf("unexpected cancellation result: %#v", result)
 	}
-	if err := pool.Submit(context.Background(), func(context.Context) error { return nil }); err != ErrClosed {
+	if err := pool.Submit(context.Background(), func(context.Context) error { return nil }); !errors.Is(err, ErrClosed) {
 		t.Fatalf("Submit() error = %v", err)
 	}
 }

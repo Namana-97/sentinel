@@ -113,6 +113,5 @@ func TestInvalidJSON(t *testing.T) {
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d", response.Code)
 	}
-	if response.Header().Get("Content-Type") != "" { /* middleware owns the JSON header in production */
-	}
+	_ = response.Header().Get("Content-Type") // middleware owns the JSON header in production
 }

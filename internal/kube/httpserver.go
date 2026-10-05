@@ -37,7 +37,7 @@ func (s HTTPServer) Start(ctx context.Context) error {
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.ShutdownTimeout)
 		defer cancel()
-		if err := shutdown(shutdownCtx); err != nil {
+		if err := shutdown(shutdownCtx); err != nil { //nolint:contextcheck // shutdown is an injected net/http lifecycle function
 			return fmt.Errorf("shutdown REST API: %w", err)
 		}
 		err := <-errorsCh

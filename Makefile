@@ -44,3 +44,8 @@ undeploy:
 
 kind-load: docker-build
 	kind load docker-image $(IMAGE) --name $(KIND_CLUSTER)
+
+# Opt-in: explicitly name a disposable local test context.
+.PHONY: test-network
+test-network:
+	./scripts/network-integration.sh $(NETWORK_CONTEXT)

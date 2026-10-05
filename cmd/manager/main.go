@@ -18,6 +18,7 @@ import (
 	"github.com/namanakanchan/sentinel/internal/kube"
 	"github.com/namanakanchan/sentinel/internal/logger"
 	"github.com/namanakanchan/sentinel/internal/monitor"
+	"github.com/namanakanchan/sentinel/internal/network"
 	policyutil "github.com/namanakanchan/sentinel/internal/policy"
 	"github.com/namanakanchan/sentinel/internal/snapshot"
 	"github.com/namanakanchan/sentinel/web/handlers"
@@ -33,17 +34,20 @@ import (
 )
 
 type options struct {
-	mode           string
-	metricsAddress string
-	probeAddress   string
-	apiAddress     string
-	leaderElection bool
-	nodeName       string
-	cgroupRoot     string
-	scanInterval   time.Duration
-	workers        int
-	queueSize      int
-	jobTimeout     time.Duration
+	networkInterval time.Duration
+	networkTimeout  time.Duration
+	clusterDomain   string
+	mode            string
+	metricsAddress  string
+	probeAddress    string
+	apiAddress      string
+	leaderElection  bool
+	nodeName        string
+	cgroupRoot      string
+	scanInterval    time.Duration
+	workers         int
+	queueSize       int
+	jobTimeout      time.Duration
 }
 
 func main() {
@@ -59,6 +63,8 @@ func main() {
 	switch opts.mode {
 	case "operator":
 		err = runOperator(ctx, cfg, opts, log)
+	case "network-monitor":
+		err = runNetwork(ctx, cfg, opts, log)
 	case "node-monitor":
 		err = runMonitor(ctx, cfg, opts, log)
 	default:
@@ -72,7 +78,7 @@ func main() {
 
 func parseFlags() options {
 	var opts options
-	flag.StringVar(&opts.mode, "mode", "operator", "operator or node-monitor")
+	flag.StringVar(&opts.mode, "mode", "operator", "operator, node-monitor or network-monitor")
 	flag.StringVar(&opts.metricsAddress, "metrics-bind-address", ":8080", "metrics listen address")
 	flag.StringVar(&opts.probeAddress, "health-probe-bind-address", ":8081", "health probe listen address")
 	flag.StringVar(&opts.apiAddress, "api-bind-address", ":8090", "REST API listen address")
@@ -83,6 +89,9 @@ func parseFlags() options {
 	flag.IntVar(&opts.workers, "workers", 4, "bounded memory workers")
 	flag.IntVar(&opts.queueSize, "queue-size", 256, "bounded worker queue size")
 	flag.DurationVar(&opts.jobTimeout, "job-timeout", 2*time.Minute, "per-intervention timeout")
+	flag.DurationVar(&opts.networkInterval, "network-interval", 5*time.Second, "Service availability scan interval")
+	flag.DurationVar(&opts.networkTimeout, "network-timeout", 3*time.Second, "per-Service network timeout")
+	flag.StringVar(&opts.clusterDomain, "cluster-domain", "cluster.local", "cluster DNS domain")
 	flag.Parse()
 	return opts
 }
@@ -143,4 +152,38 @@ func runMonitor(ctx context.Context, cfg *rest.Config, opts options, log *slog.L
 	}
 	log.Info("starting Sentinel node monitor", "node", opts.nodeName, "scan_interval", opts.scanInterval, "workers", opts.workers)
 	return agent.Run(ctx)
+}
+
+func runNetwork(ctx context.Context, cfg *rest.Config, opts options, log *slog.Logger) error {
+	typed, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
+	agent, err := network.New(typed, log, opts.networkInterval, opts.networkTimeout, opts.clusterDomain)
+	if err != nil {
+		return err
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/network/status", agent)
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	server := kube.HTTPServer{Server: &http.Server{Addr: opts.apiAddress, Handler: mux, ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second}, ShutdownTimeout: 10 * time.Second}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- server.Start(runCtx) }()
+	agentDone := make(chan error, 1)
+	go func() { agentDone <- agent.Run(runCtx) }()
+	select {
+	case err = <-done:
+		cancel()
+		<-agentDone
+		return err
+	case err = <-agentDone:
+		cancel()
+		serverErr := <-done
+		if err != nil {
+			return err
+		}
+		return serverErr
+	}
 }
