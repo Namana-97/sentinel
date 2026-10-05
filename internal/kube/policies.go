@@ -33,7 +33,7 @@ func (c PolicyClient) Get(ctx context.Context, name string) (*sentinelv1.MemoryP
 	return out, nil
 }
 
-// List converts an informer snapshot to typed policies.
+// ListPolicies converts an informer snapshot to typed policies.
 func ListPolicies(objects []interface{}) ([]sentinelv1.MemoryPolicy, error) {
 	out := make([]sentinelv1.MemoryPolicy, 0, len(objects))
 	for _, object := range objects {

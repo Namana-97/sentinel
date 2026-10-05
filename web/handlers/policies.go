@@ -66,13 +66,13 @@ func (a API) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, &list)
 }
 func (a API) get(w http.ResponseWriter, r *http.Request) {
-	item, ok := a.find(w, r.Context(), r.PathValue("name"))
+	item, ok := a.find(r.Context(), w, r.PathValue("name"))
 	if ok {
 		writeJSON(w, http.StatusOK, item)
 	}
 }
 func (a API) update(w http.ResponseWriter, r *http.Request) {
-	current, ok := a.find(w, r.Context(), r.PathValue("name"))
+	current, ok := a.find(r.Context(), w, r.PathValue("name"))
 	if !ok {
 		return
 	}
@@ -92,7 +92,7 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, current)
 }
 func (a API) delete(w http.ResponseWriter, r *http.Request) {
-	current, ok := a.find(w, r.Context(), r.PathValue("name"))
+	current, ok := a.find(r.Context(), w, r.PathValue("name"))
 	if !ok {
 		return
 	}
@@ -102,7 +102,7 @@ func (a API) delete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-func (a API) find(w http.ResponseWriter, ctx context.Context, name string) (*sentinelv1.MemoryPolicy, bool) {
+func (a API) find(ctx context.Context, w http.ResponseWriter, name string) (*sentinelv1.MemoryPolicy, bool) {
 	item := &sentinelv1.MemoryPolicy{}
 	if err := a.Client.Get(ctx, types.NamespacedName{Name: name}, item); err != nil {
 		handleKubeError(w, err)

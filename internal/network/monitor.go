@@ -17,8 +17,10 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// Selector identifies Services opted into network checks.
 const Selector = "sentinel.io/network-check=true"
 
+// Result is the latest observed connectivity state for a Service.
 type Result struct {
 	Namespace           string     `json:"namespace"`
 	Service             string     `json:"service"`
@@ -33,6 +35,7 @@ type Result struct {
 	LastRecoverySeconds float64    `json:"lastRecoverySeconds,omitempty"`
 }
 
+// Monitor checks opted-in Services from the pod network.
 type Monitor struct {
 	Client        kubernetes.Interface
 	Interval      time.Duration
@@ -47,6 +50,7 @@ type Monitor struct {
 	scanError     string
 }
 
+// New creates a bounded Service network monitor.
 func New(client kubernetes.Interface, log *slog.Logger, interval, timeout time.Duration, domain string) (*Monitor, error) {
 	if interval <= 0 || timeout <= 0 || domain == "" {
 		return nil, fmt.Errorf("network interval, timeout and cluster domain must be configured")
@@ -69,6 +73,7 @@ func (m *Monitor) Run(ctx context.Context) error {
 	}
 }
 
+// Scan checks all currently opted-in Services once.
 func (m *Monitor) Scan(ctx context.Context) {
 	listCtx, cancel := context.WithTimeout(ctx, m.Timeout)
 	services, err := m.Client.CoreV1().Services("").List(listCtx, metav1.ListOptions{LabelSelector: Selector})
@@ -193,7 +198,7 @@ func (m *Monitor) Check(ctx context.Context, svc corev1.Service) Result {
 	if err != nil {
 		return fail("ConnectionFailed", err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	r.HTTPStatus = response.StatusCode
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fail("HTTPFailed", fmt.Errorf("HTTP status %d", response.StatusCode))
@@ -212,7 +217,7 @@ func (m *Monitor) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct {
+	_ = json.NewEncoder(w).Encode(struct {
 		CheckedAt time.Time         `json:"checkedAt"`
 		ScanError string            `json:"scanError,omitempty"`
 		Services  map[string]Result `json:"services"`

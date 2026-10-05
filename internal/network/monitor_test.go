@@ -41,7 +41,7 @@ func TestCheckStages(t *testing.T) {
 			port := int32(8080)
 			slice := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Name: "app-1", Namespace: "demo", Labels: map[string]string{"kubernetes.io/service-name": "app"}}, Ports: []discoveryv1.EndpointPort{{Name: &name, Port: &port}}, Endpoints: []discoveryv1.Endpoint{{Addresses: []string{"10.244.0.2"}, Conditions: discoveryv1.EndpointConditions{Ready: &tc.ready}}}}
 			m, _ := New(fake.NewSimpleClientset(slice), slog.New(slog.NewTextHandler(io.Discard, nil)), time.Second, time.Second, "cluster.local")
-			m.Lookup = func(ctx context.Context, host string) ([]string, error) {
+			m.Lookup = func(_ context.Context, host string) ([]string, error) {
 				if host != "app.demo.svc.cluster.local" {
 					t.Fatal(host)
 				}

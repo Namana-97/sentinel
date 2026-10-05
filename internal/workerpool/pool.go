@@ -20,9 +20,15 @@ type Job func(context.Context) error
 type ResultStatus string
 
 const (
+	// ResultSucceeded marks a completed worker result.
 	ResultSucceeded ResultStatus = "succeeded"
-	ResultFailed    ResultStatus = "failed"
-	ResultTimedOut  ResultStatus = "timed_out"
+
+	// ResultFailed marks a worker result that ended with an error.
+	ResultFailed ResultStatus = "failed"
+
+	// ResultTimedOut marks a worker result that exceeded its deadline.
+	ResultTimedOut ResultStatus = "timed_out"
+	// ResultCancelled marks a worker result cancelled before completion.
 	ResultCancelled ResultStatus = "cancelled"
 )
 
@@ -77,12 +83,22 @@ func New(cfg Config) (*Pool, error) {
 	if cfg.Retries < 0 || cfg.Timeout <= 0 || cfg.RetryDelay < 0 {
 		return nil, fmt.Errorf("invalid retry or timeout configuration")
 	}
+
 	slots := make(chan struct{}, cfg.QueueSize)
 	for i := 0; i < cfg.QueueSize; i++ {
 		slots <- struct{}{}
 	}
+
 	resultCapacity := cfg.QueueSize + cfg.Workers
-	return &Pool{cfg: cfg, jobs: make(chan submission, cfg.QueueSize), slots: slots, done: make(chan struct{}), rawResults: make(chan Result, resultCapacity), results: make(chan Result, resultCapacity)}, nil
+
+	return &Pool{
+		cfg:        cfg,
+		jobs:       make(chan submission, cfg.QueueSize),
+		slots:      slots,
+		done:       make(chan struct{}),
+		rawResults: make(chan Result, resultCapacity),
+		results:    make(chan Result, resultCapacity),
+	}, nil
 }
 
 // Start launches the fixed worker set. Cancellation stops workers promptly.
@@ -92,15 +108,19 @@ func (p *Pool) Start(parent context.Context) {
 		p.mu.Unlock()
 		return
 	}
+
 	p.started = true
 	ctx, cancel := context.WithCancel(parent)
 	p.cancel = cancel
+
 	p.resultWG.Add(1)
 	go p.aggregate()
+
 	for i := 0; i < p.cfg.Workers; i++ {
 		p.wg.Add(1)
 		go p.worker(ctx)
 	}
+
 	p.mu.Unlock()
 }
 
@@ -118,6 +138,7 @@ func (p *Pool) SubmitNamed(ctx context.Context, id string, job Job) error {
 	if id == "" {
 		return fmt.Errorf("job ID is required")
 	}
+
 	select {
 	case <-p.slots:
 	case <-ctx.Done():
@@ -125,18 +146,23 @@ func (p *Pool) SubmitNamed(ctx context.Context, id string, job Job) error {
 	case <-p.done:
 		return ErrClosed
 	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	if p.closed {
 		p.slots <- struct{}{}
 		return ErrClosed
 	}
+
 	p.jobs <- submission{id: id, job: job}
 	return nil
 }
 
 // Results exposes the bounded, typed fan-in stream.
-func (p *Pool) Results() <-chan Result { return p.results }
+func (p *Pool) Results() <-chan Result {
+	return p.results
+}
 
 // Stop prevents submissions, cancels workers, and waits for all goroutines.
 func (p *Pool) Stop() {
@@ -146,27 +172,33 @@ func (p *Pool) Stop() {
 		close(p.done)
 		cancel := p.cancel
 		p.mu.Unlock()
+
 		if cancel != nil {
 			cancel()
 		}
+
 		p.wg.Wait()
 		close(p.rawResults)
 		p.resultWG.Wait()
 	})
 }
+
 func (p *Pool) worker(ctx context.Context) {
 	defer p.wg.Done()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
+
 		select {
 		case <-ctx.Done():
 			return
 		case submitted := <-p.jobs:
 			p.slots <- struct{}{}
+
 			if submitted.job != nil {
 				result := p.run(ctx, submitted)
 				p.rawResults <- result
@@ -174,36 +206,50 @@ func (p *Pool) worker(ctx context.Context) {
 		}
 	}
 }
+
 func (p *Pool) run(ctx context.Context, submitted submission) Result {
-	result := Result{ID: submitted.id, StartedAt: time.Now()}
+	result := Result{
+		ID:        submitted.id,
+		StartedAt: time.Now(),
+	}
+
 	for attempt := 0; attempt <= p.cfg.Retries; attempt++ {
 		result.Attempts = attempt + 1
+
 		jobCtx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
 		err := submitted.job(jobCtx)
 		jobErr := jobCtx.Err()
 		cancel()
+
 		if err == nil && jobErr == nil {
 			result.Status = ResultSucceeded
 			result.FinishedAt = time.Now()
 			return result
 		}
+
 		if err == nil {
 			err = jobErr
 		}
+
 		result.Err = err
+
 		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 			result.Status = ResultCancelled
 			result.FinishedAt = time.Now()
 			return result
 		}
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(jobErr, context.DeadlineExceeded) {
+
+		if errors.Is(err, context.DeadlineExceeded) ||
+			errors.Is(jobErr, context.DeadlineExceeded) {
 			result.Status = ResultTimedOut
 		} else {
 			result.Status = ResultFailed
 		}
+
 		if attempt < p.cfg.Retries {
 			result.Retried = true
 			timer := time.NewTimer(p.cfg.RetryDelay)
+
 			select {
 			case <-ctx.Done():
 				timer.Stop()
@@ -215,6 +261,7 @@ func (p *Pool) run(ctx context.Context, submitted submission) Result {
 			}
 		}
 	}
+
 	result.FinishedAt = time.Now()
 	return result
 }
@@ -223,6 +270,7 @@ func (p *Pool) run(ctx context.Context, submitted submission) Result {
 func (p *Pool) aggregate() {
 	defer p.resultWG.Done()
 	defer close(p.results)
+
 	for result := range p.rawResults {
 		p.results <- result
 	}

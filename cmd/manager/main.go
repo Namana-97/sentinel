@@ -165,7 +165,7 @@ func runNetwork(ctx context.Context, cfg *rest.Config, opts options, log *slog.L
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/network/status", agent)
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	server := kube.HTTPServer{Server: &http.Server{Addr: opts.apiAddress, Handler: mux, ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second}, ShutdownTimeout: 10 * time.Second}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
